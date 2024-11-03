@@ -7,20 +7,51 @@
     <title>Tic Tac Toe Game</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script>
+        let humanChoice = 'X';
+        let humanFirst = true;
+
+        function setChoices() {
+            humanChoice = document.getElementById('marker').value;
+            humanFirst = document.getElementById('turn').value === 'yes';
+            alert(`You chose ${humanChoice} and will ${humanFirst ? 'start' : 'let the computer start'}`);
+            startGame();
+        }
+
+        function startGame() {
+            if (!humanFirst) {
+                fetch('/computer-move', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ cChoice: humanChoice === 'X' ? 'O' : 'X' })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'loss' || data.status === 'draw') {
+                        alert(data.message);
+                        resetGame();
+                    } else {
+                        updateBoard(data.board);
+                    }
+                });
+            }
+        }
+
         function makeMove(x, y) {
             fetch('/move', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({x: x, y: y})
+                body: JSON.stringify({ x: x, y: y, hChoice: humanChoice })
             })
             .then(response => response.json())
             .then(data => {
-                if (data.status === "win" || data.status === "loss") {
+                if (data.status === 'win' || data.status === 'loss' || data.status === 'draw') {
                     alert(data.message);
-                    location.reload();
-                } else if (data.status === "invalid") {
+                    resetGame();
+                } else if (data.status === 'invalid') {
                     alert(data.message);
                 } else {
                     updateBoard(data.board);
@@ -31,14 +62,44 @@
         function updateBoard(board) {
             for (let i = 0; i < 3; i++) {
                 for (let j = 0; j < 3; j++) {
-                    document.getElementById(`cell-${i}-${j}`).innerText = board[i][j] === 1 ? 'O' : (board[i][j] === -1 ? 'X' : '');
+                    const cellId = `cell-${i}-${j}`;
+                    const cellValue = board[i][j];
+                    const cellElement = document.getElementById(cellId);
+                    if (cellValue === 1) {
+                        cellElement.innerText = 'O'; // Computer's symbol
+                    } else if (cellValue === -1) {
+                        cellElement.innerText = 'X'; // Human's symbol
+                    } else {
+                        cellElement.innerText = ''; // Empty cell
+                    }
                 }
             }
+        }
+
+        function resetGame() {
+            location.reload(); // Simple way to reset the game
         }
     </script>
 </head>
 <body>
     <h1>Tic Tac Toe</h1>
+    <div>
+        <label for="marker">Choose your marker:</label>
+        <select id="marker">
+            <option value="X">X</option>
+            <option value="O">O</option>
+        </select>
+
+        <label for="turn">Go first?</label>
+        <select id="turn">
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+        </select>
+
+        <button onclick="setChoices()">Start Game</button>
+        <button onclick="resetGame()">Reset Game</button>
+    </div>
+
     <div id="board">
         {% for i in range(3) %}
             {% for j in range(3) %}
