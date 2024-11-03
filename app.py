@@ -1,58 +1,43 @@
 from flask import Flask, render_template, request, jsonify
 import random
-import platform
-from os import system
 
+# Create the Flask app instance
 app = Flask(__name__)
 
-
+# Constants for players
 HUMAN = -1
 COMP = +1
 
+# Global board initialization
 board = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
-NODES = 0
 
-def evaluate(state):
-    """Evaluates the board state and returns the score."""
-    if check_win(state, COMP):
-        return +1
-    elif check_win(state, HUMAN):
-        return -1
-    return 0
+def reset_board():
+    """Resets the board to start a new game."""
+    global board
+    board = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
 
-def check_win(state, player):
-    """Checks if the specified player has won."""
-    win_patterns = [
-        [state[0][0], state[0][1], state[0][2]],
-        [state[1][0], state[1][1], state[1][2]],
-        [state[2][0], state[2][1], state[2][2]],
-        [state[0][0], state[1][0], state[2][0]],
-        [state[0][1], state[1][1], state[2][1]],
-        [state[0][2], state[1][2], state[2][2]],
-        [state[0][0], state[1][1], state[2][2]],
-        [state[2][0], state[1][1], state[0][2]],
-    ]
-    return [player, player, player] in win_patterns
-
-def game_over(state):
-    """Checks if the game is over."""
-    return check_win(state, HUMAN) or check_win(state, COMP)
-
-def available_moves(state):
-    """Returns a list of available moves."""
-    moves = []
-    for x, row in enumerate(state):
-        for y, cell in enumerate(row):
-            if cell == 0:
-                moves.append([x, y])
-    return moves
-
-def make_move(x, y, player):
-    """Makes a move on the board if valid."""
-    if [x, y] in available_moves(board):
-        board[x][y] = player
+def make_move(x, y, symbol):
+    """Make a move on the board."""
+    if board[x][y] == 0:  # Check if the cell is empty
+        board[x][y] = symbol
         return True
     return False
+
+def game_over(board):
+    """Check if the game is over due to a win or a draw."""
+    for row in board:
+        if all(cell == HUMAN for cell in row) or all(cell == COMP for cell in row):
+            return True
+    for col in range(3):
+        if all(board[row][col] == HUMAN for row in range(3)) or all(board[row][col] == COMP for row in range(3)):
+            return True
+    if (board[0][0] == board[1][1] == board[2][2] != 0) or (board[0][2] == board[1][1] == board[2][0] != 0):
+        return True
+    return not any(0 in row for row in board)  # Check for draw
+
+def available_moves(board):
+    """Return a list of available moves."""
+    return [(i, j) for i in range(3) for j in range(3) if board[i][j] == 0]
 
 @app.route('/')
 def home():
@@ -60,18 +45,49 @@ def home():
 
 @app.route('/move', methods=['POST'])
 def play_move():
-    data = request.json
-    x, y = data['x'], data['y']
-    if make_move(x, y, HUMAN):
-        if game_over(board):
-            return jsonify({"status": "win", "message": "You win!"})
-        else:
-            move = random.choice(available_moves(board))
-            make_move(move[0], move[1], COMP)
+    global board
+    try:
+        data = request.json
+        x, y = data['x'], data['y']
+        hChoice = data['hChoice']
+        
+        hSymbol = HUMAN if hChoice == 'X' else COMP
+        cSymbol = COMP if hChoice == 'X' else HUMAN
+
+        if make_move(x, y, hSymbol):
             if game_over(board):
-                return jsonify({"status": "loss", "message": "You lose!"})
-            return jsonify({"status": "continue", "board": board})
-    return jsonify({"status": "invalid", "message": "Invalid move."})
+                result = {"status": "win", "message": "You win!"}
+                reset_board()
+                return jsonify(result)
+            else:
+                if len(available_moves(board)) > 0:
+                    move = random.choice(available_moves(board))
+                    make_move(move[0], move[1], cSymbol)
+                    if game_over(board):
+                        result = {"status": "loss", "message": "You lose!"}
+                        reset_board()
+                        return jsonify(result)
+                    return jsonify({"status": "continue", "board": board})
+                else:
+                    return jsonify({"status": "draw", "message": "It's a draw!"})
+
+        return jsonify({"status": "invalid", "message": "Invalid move."})
+    except Exception as e:
+        print(f"Error: {e}")  # Log the error
+        return jsonify({"status": "error", "message": "An error occurred."}), 500
+
+@app.route('/computer-move', methods=['POST'])
+def computer_move():
+    global board
+    data = request.json
+    cChoice = data['cChoice']
+    cSymbol = COMP if cChoice == 'O' else HUMAN
+    
+    if len(available_moves(board)) > 0:
+        move = random.choice(available_moves(board))
+        make_move(move[0], move[1], cSymbol)
+        return jsonify({"status": "continue", "board": board})
+    return jsonify({"status": "draw", "message": "It's a draw!"})
 
 if __name__ == '__main__':
     app.run(debug=True)
