@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic Tac Toe Game</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script>
+        function makeMove(x, y) {
+            fetch('/move', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({x: x, y: y})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === "win" || data.status === "loss") {
+                    alert(data.message);
+                    location.reload();
+                } else if (data.status === "invalid") {
+                    alert(data.message);
+                } else {
+                    updateBoard(data.board);
+                }
+            });
+        }
+
+        function updateBoard(board) {
+            for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < 3; j++) {
+                    document.getElementById(`cell-${i}-${j}`).innerText = board[i][j] === 1 ? 'O' : (board[i][j] === -1 ? 'X' : '');
+                }
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>Tic Tac Toe</h1>
+    <div id="board">
+        {% for i in range(3) %}
+            {% for j in range(3) %}
+                <div class="cell" id="cell-{{ i }}-{{ j }}" onclick="makeMove({{ i }}, {{ j }})"></div>
+            {% endfor %}
+        {% endfor %}
+    </div>
+</body>
+</html>
